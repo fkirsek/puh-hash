@@ -54,9 +54,7 @@ readCompSingle = liftM CLI $ readExpr
 readCompPair :: Parser Comp
 readCompPair = do
     a <- readExpr
-    spaces
     symb <- choice $ fmap (try.string) $ ["==","/=", ">", ">=",">","<=",""] 
-    spaces
     b <- readExpr
     return $ case symb of
 	      "==" ->  CEQ a b
@@ -78,9 +76,7 @@ readPredNot =  char '!' >> (liftM Not $ readPred)
 readPredBin :: Parser Pred
 readPredBin = do
     a <- try readPredParens <|> readPredComp
-    spaces
     symb <- choice $ fmap (try.string) $ ["&&", "||"]
-    spaces
     b <- try readPredParens <|> readPredComp
     return $ case symb of
 		  "&&" -> And a b
@@ -89,7 +85,6 @@ readPredBin = do
 readPredParens :: Parser Pred
 readPredParens = do
   char '(' 
-  spaces
   a <- readPred
   char ')'
   return $ Parens a
@@ -98,10 +93,9 @@ readCmdAssign :: Parser Cmd
 readCmdAssign = do
     spaces
     var1 <- readExprVar
-    spaces
     char '='
-    spaces
     val1 <- readExpr
+    optional $ char '\n'
     return $ Assign { var = var1, val = val1}
 
 {-
@@ -145,7 +139,43 @@ outRedir (inRedir, args) = case findIndices (== Str ">") args of
 				      [] -> (args, Nothing, inRedir, False)
 				      a  -> (filterOutIndexes args (last a) (last a + 1), Just $ args !! (last a + 1), inRedir, True)
 			      a  -> (filterOutIndexes args (last a) (last a + 1), Just $ args !! (last a + 1), inRedir, False)
-		   
+			      
+readCmd = try readCmdAssign <|> readCmdCmd
+			      
+-- parses out comments 
 readComment :: Parser ()
-readComment = spaces >> char '#' >> char '\n' >> return ()
+readComment = spaces >> char '#' >> many (noneOf "\n") >> char '\n' >> return ()
    
+-- parsing a conditional
+readOnlyIfPart :: Parser (Pred, [Cmd])
+readOnlyIfPart = do
+    spaces
+    string "if"
+    spaces
+    pred <- readPred
+    spaces
+    string "then" 
+    spaces
+    coms <- many $ readCmd
+    return (pred, coms)
+    
+readIf :: Parser Conditional
+readIf = do
+    (pred, coms) <- readOnlyIfPart
+    spaces
+    string "fi"
+    return $ If{ cond = pred, cthen = coms }
+
+readIfThen :: Parser Conditional
+readIfThen = do
+    (pred, coms) <- readOnlyIfPart	
+    spaces
+    string "else"
+    spaces
+    elseComs <- many $ readCmd
+    return $ IfElse { cond = pred, cthen = coms, celse = elseComs}
+    
+readConditional :: Parser Conditional
+readConditional = try readIfThen <|> readIf
+    
+readTLExpr = (TLCmd <$> try readCmd) <|> (TLCnd <$> readConditional)
