@@ -21,7 +21,7 @@ source-repository head
   location:          https://github.com/fkirsek/puh-hash
 executable puh-hash
   main-is:             Main.hs
-  -- other-modules:       Hash.Language.Expressions, Hash.Parsing.HashParser
+  other-modules:       Hash.Language.Expressions, Hash.Parsing.HashParser
   -- other-extensions:    
   build-depends:       base >=4.6 && <4.7, parsec >= 3.1.8
   hs-source-dirs:      src

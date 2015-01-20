@@ -4,6 +4,8 @@
 -- A command which performs something - can be a command that takes arguments
 -- or an assignment.
 
+module Hash.Language.Expressions where
+
 data Cmd = Cmd { name   :: Expr -- The command name (can be a variable)
                , args   :: [Expr] -- The command arguments
                , inDir  :: Maybe Expr -- A redirected input fp
