@@ -7,7 +7,7 @@ import Hash.Language.Expressions
 import Text.ParserCombinators.Parsec
 import Control.Monad
 import Control.Applicative ( (<$>), (<*>), (<*) )
-
+import Data.List
 {-
 endOfCommand :: Parser Char
 endOfCommand = newline <|> eof
@@ -104,20 +104,48 @@ readCmdAssign = do
     val1 <- readExpr
     return $ Assign { var = var1, val = val1}
 
+{-
 readCmdName :: Parser String
 readCmdName = (:) <$> letter <*> many alphaNum
+-}
 
--- a true command must be written in one line
+-- a true command must be written in one line, with its arguments separated by spaces
 readCmdCmd :: Parser Cmd 
 readCmdCmd = do
-   name1 <-  readCmdName
+   spaces
+   name1 <-  readExpr
    (many $ char ' ' <|> char '\t')
    args1 <- sepBy readExpr (many $ char ' ' <|> char '\t') -- this still doesn't handle the redirection!
    optional $ char '\n'
+   let (args2, inDir1, outDir1, append1) = handleRedirects args1
    return $ Cmd {
-       name = Str name1
-     , args = args1
-     , inDir = Nothing
-     , outDir = Nothing
-     , append = False
+       name = name1
+     , args = args2
+     , inDir = inDir1
+     , outDir = outDir1
+     , append = append1
    }
+   
+-- handleing redirects manually, not the smartest buuuut hey
+handleRedirects :: [Expr] -> ( [Expr], Maybe Expr, Maybe Expr, Bool)
+handleRedirects args = outRedir $ inRedir args
+    
+
+filterOutIndexes :: [a] -> Int -> Int -> [a]
+filterOutIndexes list arg1 arg2 = map snd $ filter (\x -> fst x /= arg1 && fst x /= arg2) $ zip [0..] list
+
+inRedir :: [Expr] -> (Maybe Expr, [Expr])
+inRedir args = case findIndices (==Str "<") args of
+		    [] -> (Nothing, args)
+		    a  -> (Just $ args !! (last a + 1), filterOutIndexes args (last a) (last a +1) )
+		   
+outRedir :: (Maybe Expr, [Expr]) -> ( [Expr], Maybe Expr, Maybe Expr, Bool)
+outRedir (inRedir, args) = case findIndices (== Str ">") args of
+			      [] -> case findIndices (== Str ">>") args of
+				      [] -> (args, Nothing, inRedir, False)
+				      a  -> (filterOutIndexes args (last a) (last a + 1), Just $ args !! (last a + 1), inRedir, True)
+			      a  -> (filterOutIndexes args (last a) (last a + 1), Just $ args !! (last a + 1), inRedir, False)
+		   
+readComment :: Parser ()
+readComment = spaces >> char '#' >> char '\n' >> return ()
+   
