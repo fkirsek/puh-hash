@@ -1,3 +1,5 @@
+module Hash.Language.Exec where
+
 -- A model of a command which is waiting for arguments and a state to run
 type Command  = [String] -> ScriptState -> IO ScriptState
 
