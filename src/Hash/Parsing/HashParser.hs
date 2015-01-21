@@ -37,7 +37,7 @@ readEscapedChar = do
  
 readExprStr :: Parser Expr
 readExprStr = do	 
-    x <- many1 (readEscapedChar <|> readEncloseString <|> many1 (noneOf "\" \\\n\t") )
+    x <- many1 (readEscapedChar <|> readEncloseString <|> many1 (noneOf "\" \\\n\t;") )
     return $ Str $ concat x
     
 readExpr :: Parser Expr
@@ -95,7 +95,6 @@ readCmdAssign = do
     var1 <- readExprVar
     char '='
     val1 <- readExpr
-    optional $ char '\n'
     return $ Assign { var = var1, val = val1}
 
 {-
@@ -109,8 +108,7 @@ readCmdCmd = do
    spaces
    name1 <-  readExpr
    (many $ char ' ' <|> char '\t')
-   args1 <- sepBy readExpr (many $ char ' ' <|> char '\t') -- this still doesn't handle the redirection!
-   optional $ char '\n'
+   args1 <- sepBy readExpr (many $ char ' ' <|> tab)
    let (args2, inDir1, outDir1, append1) = handleRedirects args1
    return $ Cmd {
        name = name1
@@ -144,8 +142,11 @@ readCmd = try readCmdAssign <|> readCmdCmd
 			      
 -- parses out comments 
 readComment :: Parser ()
-readComment = spaces >> char '#' >> many (noneOf "\n") >> char '\n' >> return ()
+readComment = spaces >> char '#' >> many (noneOf "\n") >> newline >> return ()
    
+keywords :: [String]
+keywords = ["if", "then", "else", "fi"]
+ 
 -- parsing a conditional
 readOnlyIfPart :: Parser (Pred, [Cmd])
 readOnlyIfPart = do
@@ -155,31 +156,36 @@ readOnlyIfPart = do
     pred <- readPred
     spaces
     string "then" 
-    spaces
-    coms <- many $ readCmd
+    coms <- endBy readCmd newline
     return (pred, coms)
     
 readIf :: Parser Conditional
 readIf = do
     (pred, coms) <- readOnlyIfPart
     spaces
-    string "fi"
+    string ";fi"
     return $ If{ cond = pred, cthen = coms }
 
 readIfThen :: Parser Conditional
 readIfThen = do
     (pred, coms) <- readOnlyIfPart	
     spaces
-    string "else"
+    string ";else"
     spaces
-    elseComs <- many $ readCmd
+    elseComs <- endBy readCmd newline
+    spaces
+    string ";fi"
     return $ IfElse { cond = pred, cthen = coms, celse = elseComs}
     
 readConditional :: Parser Conditional
 readConditional = try readIfThen <|> readIf
-    
-readTLExpr = (TLCmd <$> try readCmd) <|> (TLCnd <$> readConditional)
+
+readTLExpr :: Parser TLExpr
+readTLExpr = (TLCnd <$> try readConditional) <|> (TLCmd <$> try readCmd)
 
 parseExprFromFile fp = parseFromFile (sepBy readExpr (many $ char ' ' <|> char '\t')) fp
 
+readManyTLExpr :: Parser [TLExpr]
+readManyTLExpr = many readTLExpr
 
+parseTLExprsFromFile fp = parseFromFile readManyTLExpr fp
