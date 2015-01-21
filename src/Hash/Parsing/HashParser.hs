@@ -196,5 +196,24 @@ readTLExpr = ( TLCmd <$> try readComment) <|> (TLCnd <$> try readConditional) <|
 
 parseExprFromFile fp = parseFromFile (sepBy readExpr (many $ char ' ' <|> char '\t')) fp
 
-parseTLExprsFromFile fp = parseFromFile readTLExprAndComments fp
-readTLExprAndComments = many $ readTLExpr
+-- the mvp function
+parseTLExprsFromFile :: FilePath -> [String] -> IO [TLExpr]
+parseTLExprsFromFile fp args = do
+    con <- readFile fp --open the file 
+    let fline = head $ lines con --take the first line
+    let vars = parse (endBy readExprVar skipwot) "variables" fline --try to parse it as a line containing variables
+    let (takesVars, varExprsList) = case vars of 
+		     Left _  -> (False, [])
+		     Right xs -> (True,  xs)
+    let body = case takesVars of
+		True  -> unlines $ tail $ lines con
+		False -> con
+    let extraTL = case takesVars of
+		True  -> map (\(v,arg) -> TLCmd $ Assign {var = v, val = Str arg} ) $ zip varExprsList args
+		False -> []
+    let ret = parse readTLExprAndComments "read script" body
+    return $ case ret of
+	 Left  e -> error "Malformed script!"
+	 Right tls -> extraTL ++ tls
+    
+readTLExprAndComments = endBy readTLExpr spaces

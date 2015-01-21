@@ -38,8 +38,9 @@ runTopLevel ctable tlexpr sstate  = case tlexpr of
 					
 evalTLList :: CommandTable -> ScriptState -> [TLExpr] -> IO ScriptState
 evalTLList _	   sstate []   = return sstate
-evalTLList ctable sstate ltlexpr = foldr (flip (>>=) ) (return sstate) tlexprWithCtable
-  where tlexprWithCtable = map (runTopLevel ctable) ltlexpr
+evalTLList ctable sstate (h:t) = do
+    newsstate <- runTopLevel ctable h sstate
+    evalTLList ctable newsstate t
 	
 -- Runs a set of commands for a given command table. If this is the first
 -- command in the chain, it is given a FilePath and constructs a new, initially

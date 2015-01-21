@@ -1,6 +1,5 @@
-;if $a ;then 
-        echo "bla"
-;else 
-        $b=10 
-;fi             
-#bla
+$a $b $c
+echo $a
+echo $b
+echo            
+#bla    

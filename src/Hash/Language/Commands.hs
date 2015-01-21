@@ -28,13 +28,14 @@ commands :: String -> Command
 commands cname = case M.lookup cname commandsMap of
 		      Just a -> a
 		      Nothing -> error "Unrecognized command"
-{-
+
 commandFromFile :: String -> Command
-commandFromFile fp [args] = do
+commandFromFile fp args sstate = do
   gh <- getHomeDirectory
   let script = gh ++ scriptDirectory ++ "/" ++ fp ++ ".hash"
-  -} 
-  
+  ltlexpr <- parseTLExprsFromFile script args
+  rez <- runHashProgram commands (Right sstate) ltlexpr
+  return rez
   
 quit :: Command
 quit _ sstate =

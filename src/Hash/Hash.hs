@@ -13,12 +13,9 @@ import Text.Parsec (parse, ParseError)
 
 import qualified Data.Map as M
 -- Runs a .hash script
-runScript :: FilePath -> IO ()
-runScript fp = do
-    eitherLtlexpr <- parseTLExprsFromFile fp
-    let ltlexpr = case eitherLtlexpr of
-	 Left err -> error "Script not formatted correctly"
-	 Right xs -> xs
+runScript :: FilePath -> [String] -> IO ()
+runScript fp args = do
+    ltlexpr <- parseTLExprsFromFile fp args
     runHashProgram commands (Left ".") ltlexpr
     return ()
     

@@ -8,7 +8,5 @@ main = do
   args <- getArgs
   case args of
        [] -> runInteractive
-       [h] -> runScript h
-       _  -> putStrLn "Either specify no scripts for interactive mode, or just one"
-       
+       (h:t) -> runScript h t       
 
