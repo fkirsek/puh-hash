@@ -13,6 +13,8 @@ import Text.ParserCombinators.Parsec
 import Control.Applicative ( (<$>), (<*>), (<*) )
 import Data.List
 
+import Control.Exception
+
 -- A model of a command which is waiting for arguments and a state to run
 type Command  = [String] -> ScriptState -> IO ScriptState
 
@@ -113,6 +115,9 @@ evalFp expr sstate = if head path == '/' then path else (wd sstate) ++ path
 -- every Command takes a [String] as it's first argument
 -- this function will append arguments from the file, if in redirection was enabled, and append two arguments that notify the function it should redirect it's output
 
+catchUnknownComm :: ScriptState -> String -> SomeException -> IO ScriptState
+catchUnknownComm sstate mes _= putStrLn mes >> return sstate
+
 evalCmdCmd :: CommandTable -> ScriptState -> Cmd -> IO ScriptState
 evalCmdCmd ctable sstate cmd = do
     let vtable = vartable sstate
@@ -131,7 +136,7 @@ evalCmdCmd ctable sstate cmd = do
 						else return []
 		let fargsEvaluated = map (`evalExpr` vtable ) fargs
 		let finalArgs = (map (`evalExpr` vtable ) $ args cmd) ++ fargsEvaluated
-		newsstate <- ourCommand finalArgs sstate
+		newsstate <- catch (ourCommand finalArgs sstate) $ catchUnknownComm sstate "Unrecognized command"
 		let retOut = outDir cmd
 		case retOut of
 		    Nothing -> putStr (output newsstate)

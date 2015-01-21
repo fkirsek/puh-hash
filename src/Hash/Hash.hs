@@ -9,6 +9,9 @@ import Hash.Language.Expressions
 import Hash.Parsing.HashParser
 import Hash.Language.Commands
 
+-- exceptions
+import Control.Exception
+
 import Text.Parsec (parse, ParseError)
 
 import qualified Data.Map as M
@@ -16,7 +19,7 @@ import qualified Data.Map as M
 runScript :: FilePath -> [String] -> IO ()
 runScript fp args = do
     ltlexpr <- parseTLExprsFromFile fp args
-    runHashProgram commands (Left ".") ltlexpr
+    catch (runHashProgram commands (Left ".") ltlexpr) $ catchAny (ScriptState {output="", wd="", vartable = M.empty}) "Invalid script"
     return ()
     
 -- Communicates with the user and performs hash commands line by line
@@ -36,8 +39,12 @@ parseOneLine sstate = do
 	   putStrLn "Error: incorrect syntax"
 	   return sstate
 	 Right a  -> do
-	   newstate <- runHashProgram commands (Right sstate) [a] 
+	   newstate <- catch (runHashProgram commands (Right sstate) [a] ) $ catchAny sstate "Invalid syntax"
 	   return newstate
+	   
+catchAny :: ScriptState -> String -> SomeException -> IO ScriptState
+catchAny sstate mes _= putStrLn mes >> return sstate
+ 
 	   
 keepOnParsing :: ScriptState -> IO ScriptState
 keepOnParsing sstate = do
