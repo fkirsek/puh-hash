@@ -11,26 +11,40 @@ import Hash.Language.Commands
 
 import Text.Parsec (parse, ParseError)
 
+import qualified Data.Map as M
 -- Runs a .hash script
-{-
 runScript :: FilePath -> IO ()
 runScript fp = do
     eitherLtlexpr <- parseTLExprsFromFile fp
     let ltlexpr = case eitherLtlexpr of
 	 Left err -> error "Script not formatted correctly"
 	 Right xs -> xs
-    runHashProgram ctable "." ltlexpr
-    -}	 
+    runHashProgram commands (Left ".") ltlexpr
+    return ()
+    
 -- Communicates with the user and performs hash commands line by line
 runInteractive :: IO ()
 runInteractive = do
-    cont <- getLine
-    foo
-    let parsed = parse readTLExpr "Interactive" cont
-    case parsed of
-	 Left err -> putStrLn "Error: incorrect syntax "
-	 Right a  -> do
-	   runHashProgram commands (Left ".") [a] 
-	   return ()
-  
+  keepOnParsing $ ScriptState { output = [], wd = [], vartable = M.empty}
+  return ()
 	   --putStrLn $ show $ parse readTLExpr "Interactive" cont
+
+parseOneLine :: ScriptState -> IO ScriptState
+parseOneLine sstate = do
+  cont <- getLine
+  let parsed = parse readTLExpr "Interactive" cont
+  --putStrLn $ show $ parsed
+  case parsed of
+	 Left err -> do
+	   putStrLn "Error: incorrect syntax"
+	   return sstate
+	 Right a  -> do
+	   newstate <- runHashProgram commands (Right sstate) [a] 
+	   return newstate
+	   
+keepOnParsing :: ScriptState -> IO ScriptState
+keepOnParsing sstate = do
+  newstate <- parseOneLine sstate
+  if(wd newstate == ";quit") 
+	      then return newstate
+	      else keepOnParsing newstate

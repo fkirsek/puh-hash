@@ -133,18 +133,19 @@ handleRedirects args = outRedir $ inRedir args
 
 filterOutIndexes :: [a] -> Int -> Int -> [a]
 filterOutIndexes list arg1 arg2 = map snd $ filter (\x -> fst x /= arg1 && fst x /= arg2) $ zip [0..] list
-
+-- returns an (inRedir, args); inRedir for Cmd, and args for outRedir to parse
 inRedir :: [Expr] -> (Maybe Expr, [Expr])
 inRedir args = case findIndices (==Str "<") args of
 		    [] -> (Nothing, args)
 		    a  -> (Just $ args !! (last a + 1), filterOutIndexes args (last a) (last a +1) )
-		   
+
+-- returns (args, inRedir, outRedir, append::Bool)		    
 outRedir :: (Maybe Expr, [Expr]) -> ( [Expr], Maybe Expr, Maybe Expr, Bool)
 outRedir (inRedir, args) = case findIndices (== Str ">") args of
 			      [] -> case findIndices (== Str ">>") args of
-				      [] -> (args, Nothing, inRedir, False)
-				      a  -> (filterOutIndexes args (last a) (last a + 1), Just $ args !! (last a + 1), inRedir, True)
-			      a  -> (filterOutIndexes args (last a) (last a + 1), Just $ args !! (last a + 1), inRedir, False)
+				      [] -> (args,inRedir, Nothing, False)
+				      a  -> (filterOutIndexes args (last a) (last a + 1),inRedir, Just $ args !! (last a + 1), True)
+			      a  -> (filterOutIndexes args (last a) (last a + 1), inRedir,Just $ args !! (last a + 1),  False)
 			      
 readCmd = try readCmdAssign <|> readCmdCmd
 			      

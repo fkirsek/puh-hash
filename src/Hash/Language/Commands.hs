@@ -16,7 +16,14 @@ import Text.ParserCombinators.Parsec
 import Hash.Parsing.HashParser
 
 commands :: M.Map String Command
-commands =  M.fromList [("mv",mv), ("create", create) ,("rm",rm)]
+commands =  M.fromList [ ("mv",mv), ("cp",cp), ("create", create) ,("rm",rm), ("cpdir", cpdir)
+			, ("mkdir",mkdir), ("rmdir", rmdir), ("ls", ls)
+			, ("pwd", pwd), ("cd",cd), ("echo", echo), ("cat", cat)
+			, ("quit", quit)]
+			
+quit :: Command
+quit _ sstate =
+  return $ sstate{ output = "", wd = ";quit"}
 
 takeName :: String -> String
 takeName = reverse . takeWhile (/='/') . reverse
@@ -52,20 +59,20 @@ mv list sstate = do
 	 False -> mv
     let indivList = zipWith (\a b -> [a,b]) (init list) (repeat $ last list)
     mapM_ (flip f sstate) indivList 
-    return sstate
+    return $ sstate { output=""}
     
 mvFileToFile :: Command
 mvFileToFile [src, target] sstate = do
     copyFile src target
     removeFile src
-    return sstate
+    return $ sstate { output=""}
     
 mvFileToDirectory :: Command
 mvFileToDirectory [src, target] sstate = do
     let targetF = takeFolderName src target
     copyFile src targetF
     removeFile src
-    return sstate
+    return $ sstate { output=""}
     
 mvDirectoryToDirectory :: Command
 mvDirectoryToDirectory [src, targetDir] sstate = do
@@ -76,27 +83,27 @@ mvDirectoryToDirectory [src, targetDir] sstate = do
     let indivList = zipWith (\a b -> [a,b]) contentsReal (repeat $ targetDir ++ "/"++src)
     mapM_ (flip mv sstate) indivList
     removeDirectoryRecursive src
-    return sstate
+    return $ sstate { output=""}
 
 cp :: Command
 cp [] _  = error "cp: No arguments given to cp"
 cp [_] _ = error "cp: Too few arguments"
 cp [src,target] sstate = do
     copyFile src target
-    return sstate
+    return $ sstate { output=""}
     
 cp list sstate = do
     let target = last list
     let indivList = zipWith (\a b -> [a,takeFolderName a b]) (init list) (repeat $ target)
     mapM_ (flip cp sstate) indivList
-    return sstate
+    return $ sstate { output=""}
     
     
 rm :: Command
 rm [] _ = error "rm: No arguments given to rm"
 rm list sstate = do
     mapM_ removeFile list
-    return sstate
+    return $ sstate { output=""}
     
 create :: Command
 create [] _ = error "create: No arguments given to create"
@@ -104,10 +111,10 @@ create [target] sstate = do
     existsF <- doesFileExist target 
     existsD <- doesDirectoryExist target
     let exists = existsF || existsD
-    if exists then return sstate 
+    if exists then return $ sstate { output=""}
 	      else do
 		 openFile target WriteMode >>= hClose
-		 return sstate
+		 return $ sstate { output=""}
 
 cpdir :: Command
 cpdir [] _ = error "cpdir: No arguments given"
@@ -115,7 +122,7 @@ cpdir [_] _= error "cpdir: No arguments given"
 cpdir list sstate = do
     let indivList = zipWith (\a b -> [a,b] ) (init list) (repeat $ last list)
     mapM_ (flip cpDirectoryIntoDirectory sstate) indivList
-    return sstate
+    return $ sstate { output=""}
     
 cpDirectoryIntoDirectory :: Command
 cpDirectoryIntoDirectory [src, targetDir] sstate = do
@@ -125,12 +132,12 @@ cpDirectoryIntoDirectory [src, targetDir] sstate = do
     putStrLn $ show contentsReal;
     let indivList = zipWith (\a b -> [a,b]) contentsReal (repeat $ targetDir ++ "/"++src)
     mapM_ (flip mv sstate) indivList
-    return sstate
+    return $ sstate{ output=""}
 
 mkdir :: Command
 mkdir [] _ = error "mkdir: No arguments given"
-mkdir [target] sstate = createDirectory target >> return sstate
-mkdir list sstate = mapM_(\x -> mkdir [x] sstate) list >> return sstate
+mkdir [target] sstate = createDirectory target >> (return $ sstate { output=""} )
+mkdir list sstate = mapM_(\x -> mkdir [x] sstate) list >> (return $ sstate { output=""} )
 
 rmdir :: Command
 rmdir [] _ = error "rmdir: No arguments given"
@@ -138,7 +145,7 @@ rmdir [target] sstate = do
     con <- getDirectoryContents target
     let content =  delete ".." $ delete "." con 
     case content of
-	 [] -> removeDirectory target >> return sstate
+	 [] -> removeDirectory target >> (return $ sstate { output=""})
 	 _  -> error "Directory isn't empty"
     
 ls :: Command
@@ -150,7 +157,7 @@ ls list sstate = do
 pwd :: Command
 pwd [] sstate = do
     con <- getCurrentDirectory
-    return $ sstate { output = con }
+    return $ sstate { output = con ++ "\n"}
     
 pwd _ _ = error "pwd: Too many arguments"
     
@@ -159,22 +166,30 @@ cd [] _ = error "cd: No arguments given"
 cd [target] sset = do
     cur <- getCurrentDirectory
     setCurrentDirectory target
-    return $ sset { wd = cur }
+    return $ sset { wd = cur, output = "" }
   
 cd _ _ = error "cd: Too many arguments given"
 
 readStrNotVar :: Parser Expr
 readStrNotVar = do
-    str <- many $ noneOf "$"
+    str <- many1 $ noneOf "$"
     return $ Str str
+    
+readStrAnything :: Parser Expr
+readStrAnything =  do
+    ch <- anyToken
+    return $  Str [ch]
+
+
 echo :: Command
+echo [] sstate = return $ sstate{output = "\n"}
 echo [target]  sstate = do
-    let vals  = parse (many $ (try readExprVar <|> readStrNotVar) ) "echo" target
+    let vals  = parse (many $ try readExprVar <|> readStrAnything ) "echo" target
     let vals2 = case vals of
 		Left err -> error "echo: somehow the parse failed"
 		Right a  -> a
     let out = concat $ map (flip evalExpr (vartable sstate) ) vals2
-    return $ sstate { output = out }
+    return $ sstate { output = out ++ "\n" }
     
 cat :: Command
 cat [] sstate = error "cat: No arguments given"

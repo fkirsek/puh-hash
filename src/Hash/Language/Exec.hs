@@ -33,7 +33,7 @@ data ScriptState = ScriptState { output   :: String
 -- Calculates the result of a top-level command execution
 runTopLevel :: CommandTable -> TLExpr -> ScriptState -> IO ScriptState
 runTopLevel ctable tlexpr sstate  = case tlexpr of
-					TLCmd cmd  -> evalCmdCmd ctable sstate cmd
+					TLCmd cmd  -> evalCmd   ctable cmd  sstate -- don't ask
 					TLCnd cond -> evalCond  ctable sstate cond
 					
 evalTLList :: CommandTable -> ScriptState -> [TLExpr] -> IO ScriptState
@@ -133,7 +133,9 @@ evalCmdCmd ctable sstate cmd = do
     let retOut = outDir cmd
     case retOut of
 	 Nothing -> putStr (output newsstate)
-	 Just fp -> writeFile (evalFp fp sstate) (output newsstate)
+	 Just fp -> case append cmd of
+		  True -> appendFile (evalFp fp sstate) (output newsstate)
+		  _    -> writeFile  (evalFp fp sstate) (output newsstate)
     return newsstate
 
 -- here, ScriptState is the last argument to allow easier chaining

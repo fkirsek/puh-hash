@@ -1,0 +1,8 @@
+;if $a ;then $a=5 ;else $b=10 ;fi
+echo "$a $b"
+echo "blabla"
+pwd
+cd ..
+pwd
+ls
+
