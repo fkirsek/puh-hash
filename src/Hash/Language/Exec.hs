@@ -94,7 +94,7 @@ evalPred pred vartable =
 evalCmdAssign :: Cmd -> ScriptState -> ScriptState
 evalCmdAssign asgn sstate =
     sstate {vartable = newvartable}
-      where 
+    where	
 	Var key  	   = var asgn
 	Str value	   = val asgn
 	table  	   = vartable sstate

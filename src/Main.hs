@@ -1,4 +1,5 @@
 module Main where
 
-import Hash.Parsing.HashParser
+import Hash.Hash
 import Text.Parsec
+
