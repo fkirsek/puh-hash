@@ -13,6 +13,9 @@ endOfCommand :: Parser Char
 endOfCommand = newline <|> eof
 -}
 
+skipwot :: Parser ()
+skipwot = (skipMany $ char ' ' <|> char '\t')
+
 
 readExprVar :: Parser Expr
 readExprVar = do
@@ -91,10 +94,11 @@ readPredParens = do
   
 readCmdAssign :: Parser Cmd 
 readCmdAssign = do
-    spaces
+    skipwot
     var1 <- readExprVar
     char '='
     val1 <- readExpr
+    skipwot
     return $ Assign { var = var1, val = val1}
 
 {-
@@ -105,12 +109,13 @@ readCmdName = (:) <$> letter <*> many alphaNum
 -- a true command must be written in one line, with its arguments separated by spaces
 readCmdCmd :: Parser Cmd 
 readCmdCmd = do
-   spaces
-   name1 <-  readExpr
-   (many $ char ' ' <|> char '\t')
-   args1 <- sepBy readExpr (many $ char ' ' <|> tab)
-   let (args2, inDir1, outDir1, append1) = handleRedirects args1
-   return $ Cmd {
+    skipwot
+    name1 <-  readExpr
+    skipwot
+    args1 <- sepBy readExpr (many $ char ' ' <|> tab)
+    skipwot
+    let (args2, inDir1, outDir1, append1) = handleRedirects args1
+    return $ Cmd {
        name = name1
      , args = args2
      , inDir = inDir1
@@ -142,41 +147,40 @@ readCmd = try readCmdAssign <|> readCmdCmd
 			      
 -- parses out comments 
 readComment :: Parser ()
-readComment = spaces >> char '#' >> many (noneOf "\n") >> newline >> return ()
+readComment =  skipwot >> char '#' >> many (noneOf "\n") >> newline >> return ()
    
-keywords :: [String]
-keywords = ["if", "then", "else", "fi"]
- 
 -- parsing a conditional
 readOnlyIfPart :: Parser (Pred, [Cmd])
 readOnlyIfPart = do
-    spaces
-    string "if"
-    spaces
+    skipwot
+    string ";if"
+    skipwot
     pred <- readPred
-    spaces
-    string "then" 
-    coms <- endBy readCmd newline
+    readTLExpr
+    newline
+    string ";then" 
+    coms <- endBy (try readCmd) newline
     return (pred, coms)
     
 readIf :: Parser Conditional
 readIf = do
     (pred, coms) <- readOnlyIfPart
-    spaces
+    skipwot
     string ";fi"
     return $ If{ cond = pred, cthen = coms }
 
 readIfThen :: Parser Conditional
 readIfThen = do
     (pred, coms) <- readOnlyIfPart	
-    spaces
+    skipwot
     string ";else"
-    spaces
-    elseComs <- endBy readCmd newline
-    spaces
+    skipwot
+    elseComs <- endBy (try readCmd) newline
+    skipwot
     string ";fi"
     return $ IfElse { cond = pred, cthen = coms, celse = elseComs}
     
+-- else and fi in conditionals must begin with a ;, ie. ;else and ;fi
 readConditional :: Parser Conditional
 readConditional = try readIfThen <|> readIf
 

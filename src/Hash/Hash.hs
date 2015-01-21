@@ -24,6 +24,6 @@ runScript fp = do
 runInteractive :: IO ()
 runInteractive = do
     cont <- getContents
-    putStrLn $ show $ parse readCmd "Interactive" cont
+    putStrLn $ show $ parse readTLExpr "Interactive" cont
     
 
