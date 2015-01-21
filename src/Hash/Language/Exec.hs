@@ -21,7 +21,7 @@ type VarTable = M.Map String String
 
 -- A command table - abstracted command execution, (contains command name,
 -- command) pairs. Simplest, but hardly the best way to implement this.
-type CommandTable = M.Map String Command
+type CommandTable = String -> Command
 
 -- A script state containing the last output, current working directory and
 -- the current table of variables.
@@ -119,10 +119,7 @@ evalCmdCmd ctable sstate cmd = do
     if (cname == "") 
     then return sstate 		
     else do
-		let maybeCommand = M.lookup cname ctable
-		let ourCommand = case maybeCommand of
-				      Nothing -> error "Unrecognized command"
-				      Just a  -> a
+		let ourCommand = ctable cname
 		fargs <- if (isJust (inDir cmd)) then do
 						    let fp = evalFp (fromJust $ inDir cmd) sstate
 						    tempArgs <- parseExprFromFile fp

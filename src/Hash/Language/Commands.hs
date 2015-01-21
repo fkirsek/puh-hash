@@ -15,12 +15,27 @@ import Text.Parsec.String
 import Text.ParserCombinators.Parsec
 import Hash.Parsing.HashParser
 
-commands :: M.Map String Command
-commands =  M.fromList [ ("mv",mv), ("cp",cp), ("create", create) ,("rm",rm), ("cpdir", cpdir)
+scriptDirectory :: FilePath
+scriptDirectory = "/hash/bin"
+
+commandsMap :: M.Map String Command
+commandsMap =  M.fromList [ ("mv",mv), ("cp",cp), ("create", create) ,("rm",rm), ("cpdir", cpdir)
 			, ("mkdir",mkdir), ("rmdir", rmdir), ("ls", ls)
 			, ("pwd", pwd), ("cd",cd), ("echo", echo), ("cat", cat)
 			, ("quit", quit)]
-			
+
+commands :: String -> Command
+commands cname = case M.lookup cname commandsMap of
+		      Just a -> a
+		      Nothing -> error "Unrecognized command"
+{-
+commandFromFile :: String -> Command
+commandFromFile fp [args] = do
+  gh <- getHomeDirectory
+  let script = gh ++ scriptDirectory ++ "/" ++ fp ++ ".hash"
+  -} 
+  
+  
 quit :: Command
 quit _ sstate =
   return $ sstate{ output = "", wd = ";quit"}
@@ -31,10 +46,10 @@ takeName = reverse . takeWhile (/='/') . reverse
 takeFolderName :: String -> String -> String
 takeFolderName src target = target' ++ takeName src
   where target' = if last target /= '/' then target ++ "/" else target
-
+{-
 foo :: IO()
 foo =  putStrLn $ fst $ head $ M.toList commands
-
+-}
 
 mv  :: Command
 mv []  _ = error "mv: No arguments given"
