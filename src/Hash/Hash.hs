@@ -7,6 +7,7 @@ module Hash.Hash where
 import Hash.Language.Exec 
 import Hash.Language.Expressions
 import Hash.Parsing.HashParser
+import Hash.Language.Commands
 
 import Text.Parsec (parse, ParseError)
 
@@ -23,7 +24,13 @@ runScript fp = do
 -- Communicates with the user and performs hash commands line by line
 runInteractive :: IO ()
 runInteractive = do
-    cont <- getContents
-    putStrLn $ show $ parse readTLExpr "Interactive" cont
-    
-
+    cont <- getLine
+    foo
+    let parsed = parse readTLExpr "Interactive" cont
+    case parsed of
+	 Left err -> putStrLn "Error: incorrect syntax "
+	 Right a  -> do
+	   runHashProgram commands (Left ".") [a] 
+	   return ()
+  
+	   --putStrLn $ show $ parse readTLExpr "Interactive" cont
