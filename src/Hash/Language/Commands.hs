@@ -9,6 +9,8 @@ import Hash.Language.Expressions
 import Hash.Language.Exec 
 import qualified Data.Map as M
 import Data.List
+import Hexdump
+import qualified Data.ByteString.Char8 as BS
 
 -- for echo
 import Text.Parsec.String
@@ -22,7 +24,8 @@ commandsMap :: M.Map String Command
 commandsMap =  M.fromList [ ("mv",mv), ("cp",cp), ("create", create) ,("rm",rm), ("cpdir", cpdir)
 			, ("mkdir",mkdir), ("rmdir", rmdir), ("ls", ls)
 			, ("pwd", pwd), ("cd",cd), ("echo", echo), ("cat", cat)
-			, ("quit", quit)]
+			, ("quit", quit)
+			, ("hexdump", hexd)]
 
 commands :: String -> Command
 commands cname = case M.lookup cname commandsMap of
@@ -217,4 +220,11 @@ cat list sstate = do
 cat' :: FilePath -> IO String
 cat' src = readFile src
     
-    
+hexd :: Command
+hexd list sstate = do
+    con <- BS.readFile (head list)
+    let pretty = simpleHex con 
+    putStrLn pretty
+    return sstate{output = pretty}
+
+  
