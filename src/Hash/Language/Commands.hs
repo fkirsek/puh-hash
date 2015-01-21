@@ -10,6 +10,11 @@ import Hash.Language.Exec
 import qualified Data.Map as M
 import Data.List
 
+-- for echo
+import Text.Parsec.String
+import Text.ParserCombinators.Parsec
+import Hash.Parsing.HashParser
+
 commands :: M.Map String Command
 commands =  M.fromList [("mv",mv), ("create", create) ,("rm",rm)]
 
@@ -46,7 +51,7 @@ mv list sstate = do
 	 True  -> mvDirectoryToDirectory
 	 False -> mv
     let indivList = zipWith (\a b -> [a,b]) (init list) (repeat $ last list)
-    mapM (flip f sstate) indivList 
+    mapM_ (flip f sstate) indivList 
     return sstate
     
 mvFileToFile :: Command
@@ -69,7 +74,7 @@ mvDirectoryToDirectory [src, targetDir] sstate = do
     let contentsReal = map ((src++"/")++) $ delete ".." $ delete "." contents
     putStrLn $ show contentsReal;
     let indivList = zipWith (\a b -> [a,b]) contentsReal (repeat $ targetDir ++ "/"++src)
-    mapM (flip mv sstate) indivList
+    mapM_ (flip mv sstate) indivList
     removeDirectoryRecursive src
     return sstate
 
@@ -83,14 +88,14 @@ cp [src,target] sstate = do
 cp list sstate = do
     let target = last list
     let indivList = zipWith (\a b -> [a,takeFolderName a b]) (init list) (repeat $ target)
-    mapM (flip cp sstate) indivList
+    mapM_ (flip cp sstate) indivList
     return sstate
     
     
 rm :: Command
 rm [] _ = error "rm: No arguments given to rm"
 rm list sstate = do
-    mapM removeFile list
+    mapM_ removeFile list
     return sstate
     
 create :: Command
@@ -103,4 +108,81 @@ create [target] sstate = do
 	      else do
 		 openFile target WriteMode >>= hClose
 		 return sstate
-			  
+
+cpdir :: Command
+cpdir [] _ = error "cpdir: No arguments given"
+cpdir [_] _= error "cpdir: No arguments given"
+cpdir list sstate = do
+    let indivList = zipWith (\a b -> [a,b] ) (init list) (repeat $ last list)
+    mapM_ (flip cpDirectoryIntoDirectory sstate) indivList
+    return sstate
+    
+cpDirectoryIntoDirectory :: Command
+cpDirectoryIntoDirectory [src, targetDir] sstate = do
+    contents <- getDirectoryContents src
+    createDirectory $ targetDir ++ "/" ++ src
+    let contentsReal = map ((src++"/")++) $ delete ".." $ delete "." contents
+    putStrLn $ show contentsReal;
+    let indivList = zipWith (\a b -> [a,b]) contentsReal (repeat $ targetDir ++ "/"++src)
+    mapM_ (flip mv sstate) indivList
+    return sstate
+
+mkdir :: Command
+mkdir [] _ = error "mkdir: No arguments given"
+mkdir [target] sstate = createDirectory target >> return sstate
+mkdir list sstate = mapM_(\x -> mkdir [x] sstate) list >> return sstate
+
+rmdir :: Command
+rmdir [] _ = error "rmdir: No arguments given"
+rmdir [target] sstate = do
+    con <- getDirectoryContents target
+    let content =  delete ".." $ delete "." con 
+    case content of
+	 [] -> removeDirectory target >> return sstate
+	 _  -> error "Directory isn't empty"
+    
+ls :: Command
+ls [] sstate = ls ["."] sstate
+ls list sstate = do
+    con <- getDirectoryContents (head list)
+    return $ sstate { output = unlines$con }
+    
+pwd :: Command
+pwd [] sstate = do
+    con <- getCurrentDirectory
+    return $ sstate { output = con }
+    
+pwd _ _ = error "pwd: Too many arguments"
+    
+cd :: Command
+cd [] _ = error "cd: No arguments given"
+cd [target] sset = do
+    cur <- getCurrentDirectory
+    setCurrentDirectory target
+    return $ sset { wd = cur }
+  
+cd _ _ = error "cd: Too many arguments given"
+
+readStrNotVar :: Parser Expr
+readStrNotVar = do
+    str <- many $ noneOf "$"
+    return $ Str str
+echo :: Command
+echo [target]  sstate = do
+    let vals  = parse (many $ (try readExprVar <|> readStrNotVar) ) "echo" target
+    let vals2 = case vals of
+		Left err -> error "echo: somehow the parse failed"
+		Right a  -> a
+    let out = concat $ map (flip evalExpr (vartable sstate) ) vals2
+    return $ sstate { output = out }
+    
+cat :: Command
+cat [] sstate = error "cat: No arguments given"
+cat list sstate = do
+    ress <- mapM cat' list
+    return $ sstate { output = unlines $ ress }
+    
+cat' :: FilePath -> IO String
+cat' src = readFile src
+    
+    
