@@ -15,11 +15,15 @@ import Control.Exception
 import Text.Parsec (parse, ParseError)
 
 import qualified Data.Map as M
+
+catchParseExp :: SomeException -> IO [TLExpr]
+catchParseExp e = putStrLn "Invalid script syntax" >> return []
+
 -- Runs a .hash script
 runScript :: FilePath -> [String] -> IO ()
 runScript fp args = do
-    ltlexpr <- parseTLExprsFromFile fp args
-    catch (runHashProgram commands (Left ".") ltlexpr) $ catchAny (ScriptState {output="", wd="", vartable = M.empty}) "Invalid script"
+    ltlexpr <- catch (parseTLExprsFromFile fp args) $ catchParseExp
+    catch (runHashProgram commands (Left ".") ltlexpr) $ catchAny (ScriptState {output="", wd="", vartable = M.empty}) "Invalid usage of functions"
     return ()
     
 -- Communicates with the user and performs hash commands line by line
@@ -36,10 +40,10 @@ parseOneLine sstate = do
   --putStrLn $ show $ parsed
   case parsed of
 	 Left err -> do
-	   putStrLn "Error: incorrect syntax"
+	   putStrLn "Error: invalid syntax"
 	   return sstate
 	 Right a  -> do
-	   newstate <- catch (runHashProgram commands (Right sstate) [a] ) $ catchAny sstate "Invalid syntax"
+	   newstate <- catch (runHashProgram commands (Right sstate) [a] ) $ catchAny sstate "Invalid usage"
 	   return newstate
 	   
 catchAny :: ScriptState -> String -> SomeException -> IO ScriptState

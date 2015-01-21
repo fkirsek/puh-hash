@@ -115,8 +115,10 @@ evalFp expr sstate = if head path == '/' then path else (wd sstate) ++ path
 -- every Command takes a [String] as it's first argument
 -- this function will append arguments from the file, if in redirection was enabled, and append two arguments that notify the function it should redirect it's output
 
-catchUnknownComm :: ScriptState -> String -> SomeException -> IO ScriptState
-catchUnknownComm sstate mes _= putStrLn mes >> return sstate
+catchUnknownComm :: ScriptState ->  SomeException -> IO ScriptState
+catchUnknownComm sstate e = do
+    putStrLn $ show e  
+    return sstate
 
 evalCmdCmd :: CommandTable -> ScriptState -> Cmd -> IO ScriptState
 evalCmdCmd ctable sstate cmd = do
@@ -136,7 +138,7 @@ evalCmdCmd ctable sstate cmd = do
 						else return []
 		let fargsEvaluated = map (`evalExpr` vtable ) fargs
 		let finalArgs = (map (`evalExpr` vtable ) $ args cmd) ++ fargsEvaluated
-		newsstate <- catch (ourCommand finalArgs sstate) $ catchUnknownComm sstate "Unrecognized command"
+		newsstate <- catch (ourCommand finalArgs sstate) $ catchUnknownComm (sstate{output =""}) 
 		let retOut = outDir cmd
 		case retOut of
 		    Nothing -> putStr (output newsstate)
