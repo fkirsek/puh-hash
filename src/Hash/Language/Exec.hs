@@ -30,18 +30,28 @@ data ScriptState = ScriptState { output   :: String
                                , vartable :: VarTable
                                } deriving Show
 
+-- Calculates the result of a top-level command execution
+runTopLevel :: CommandTable -> TLExpr -> ScriptState -> IO ScriptState
+runTopLevel ctable tlexpr sstate  = case tlexpr of
+					TLCmd cmd  -> evalCmdCmd ctable sstate cmd
+					TLCnd cond -> evalCond  ctable sstate cond
+					
+evalTLList :: CommandTable -> ScriptState -> [TLExpr] -> IO ScriptState
+evalTLList _	   sstate []   = return sstate
+evalTLList ctable sstate ltlexpr = foldr (flip (>>=) ) (return sstate) tlexprWithCtable
+  where tlexprWithCtable = map (runTopLevel ctable) ltlexpr
+	
 -- Runs a set of commands for a given command table. If this is the first
 -- command in the chain, it is given a FilePath and constructs a new, initially
 -- blank, ScriptState. Otherwise, it is given the state as left by the previous
 -- command’s execution.
-{-
 runHashProgram :: CommandTable -> Either FilePath ScriptState -> [TLExpr]
                   -> IO ScriptState
-                  -}
-                  {-
--- Calculates the result of a top-level command execution
-runTopLevel :: CommandTable -> ScriptState -> TLExpr -> IO ScriptState
--}
+runHashProgram ctable eitherSstate ltlexpr = do
+  let sstate = case eitherSstate of
+		Left fp -> ScriptState { output = "", wd = fp, vartable = M.empty }
+		Right s -> s
+  evalTLList ctable sstate ltlexpr
 --The rest of the module should consist of similar functions, calling each
 --other so that each expression is parsed by a lower-level function and the
 --result can be used in a higher-level function. The Command table and state
@@ -74,7 +84,7 @@ evalPred :: Pred -> VarTable -> Bool
 evalPred pred vartable = 
     case pred of
 	 Pred a   -> evalComp a vartable
-	 Not a    -> val a
+	 Not a    -> not $ val a
 	 And a b  -> val a && val b
 	 Or  a b  -> val a || val b
 	 Parens a -> val a
@@ -91,6 +101,7 @@ evalCmdAssign asgn sstate =
 	newvartable  = M.insert key value table
 
 -- converts a filepath in the form of expr into an absolute FilePath, using the working directory file path
+-- wd must end with a /
 evalFp :: Expr -> ScriptState -> FilePath
 evalFp expr sstate = if head path == '/' then path else (wd sstate) ++ path
   where path = evalExpr expr (vartable sstate)
@@ -122,8 +133,26 @@ evalCmdCmd ctable sstate cmd = do
 	 Just fp -> writeFile (evalFp fp sstate) (output newsstate)
     return newsstate
 
-evalCmd :: CommandTable -> ScriptState -> Cmd -> IO ScriptState
-evalCmd ctable sstate cmd =
+-- here, ScriptState is the last argument to allow easier chaining
+evalCmd :: CommandTable -> Cmd -> ScriptState -> IO ScriptState
+evalCmd ctable cmd sstate  =
   case cmd of
        Assign _ _ -> return $ evalCmdAssign cmd sstate
        Cmd    _ _ _ _ _-> evalCmdCmd ctable sstate cmd
+       
+evalCmdList :: CommandTable -> ScriptState -> [Cmd] -> IO ScriptState
+evalCmdList _	   sstate []   = return sstate
+evalCmdList ctable sstate lcmd = foldr (flip (>>=) ) (return sstate) cmdsWithCtable
+    where cmdsWithCtable = map (evalCmd ctable) lcmd
+	    
+evalCondIfThenElse :: CommandTable -> ScriptState -> Conditional -> IO ScriptState
+evalCondIfThenElse ctable sstate (IfElse cond1 cthen1 celse1) = if evalPred cond1 (vartable sstate) 
+								   then evalCmdList ctable sstate cthen1
+								else evalCmdList ctable sstate celse1
+				
+evalCond :: CommandTable -> ScriptState -> Conditional -> IO ScriptState
+evalCond ctable sstate conditional = case conditional of
+					  If cond1 cthen1 -> evalCondIfThenElse ctable sstate (IfElse {cond = cond1, cthen=cthen1, celse = []} )
+					  IfElse cond1 cthen1 celse1 -> evalCondIfThenElse ctable sstate conditional
+					  
+
