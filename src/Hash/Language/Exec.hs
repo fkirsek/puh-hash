@@ -102,10 +102,13 @@ evalCmdAssign asgn sstate =
 
 -- converts a filepath in the form of expr into an absolute FilePath, using the working directory file path
 -- wd must end with a /
+-- used, but not needed since we use System.IO functions that get and set current directory
 evalFp :: Expr -> ScriptState -> FilePath
+evalFp expr sstate = evalExpr expr (vartable sstate)
+{-
 evalFp expr sstate = if head path == '/' then path else (wd sstate) ++ path
   where path = evalExpr expr (vartable sstate)
-
+  -}
 -- every Command takes a [String] as it's first argument
 -- this function will append arguments from the file, if in redirection was enabled, and append two arguments that notify the function it should redirect it's output
 

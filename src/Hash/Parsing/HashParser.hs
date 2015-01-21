@@ -161,6 +161,7 @@ readOnlyIfPart = do
     pred <- readPred
     spaces
     string ";then"
+    skipwot
     optional newline
     coms <- many (try readCmd)
     return (pred, coms)
@@ -192,4 +193,6 @@ readTLExpr = (TLCnd <$> try readConditional) <|> (TLCmd <$> try readCmd)
 
 parseExprFromFile fp = parseFromFile (sepBy readExpr (many $ char ' ' <|> char '\t')) fp
 
-parseTLExprsFromFile fp = parseFromFile (many $ skipMany readComment >> readTLExpr <* skipMany readComment) fp
+parseTLExprsFromFile fp = parseFromFile readTLExprAndComments fp
+
+readTLExprAndComments = many $ try $ skipMany readComment >> readTLExpr
