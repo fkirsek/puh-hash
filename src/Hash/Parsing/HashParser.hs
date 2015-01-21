@@ -179,3 +179,7 @@ readConditional :: Parser Conditional
 readConditional = try readIfThen <|> readIf
     
 readTLExpr = (TLCmd <$> try readCmd) <|> (TLCnd <$> readConditional)
+
+parseExprFromFile fp = parseFromFile (sepBy readExpr (many $ char ' ' <|> char '\t')) fp
+
+

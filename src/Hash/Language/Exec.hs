@@ -64,7 +64,7 @@ evalComp comp vartable =
 	 CEQ a b -> (val a == val b)
 	 CNE a b -> (val a /= val b)
 	 CGE a b -> (val a >= val b)
-	 CGT a b -> (val a >= val b)
+	 CGT a b -> (val a >  val b)
 	 CLE a b -> (val a <= val b)
 	 CLT a b -> (val a <  val b)
 	 CLI a   -> (val a == "")
@@ -94,8 +94,10 @@ evalCmdAssign asgn sstate =
 evalFp :: Expr -> ScriptState -> FilePath
 evalFp expr sstate = if head path == '/' then path else (wd sstate) ++ path
   where path = evalExpr expr (vartable sstate)
-	
-	 
+
+-- every Command takes a [String] as it's first argument
+-- this function will append arguments from the file, if in redirection was enabled, and append two arguments that notify the function it should redirect it's output
+
 evalCmdCmd :: CommandTable -> ScriptState -> Cmd -> IO ScriptState
 evalCmdCmd ctable sstate cmd = do
     let vtable = vartable sstate
@@ -105,15 +107,23 @@ evalCmdCmd ctable sstate cmd = do
 			  Just a  -> a
     fargs <- if (isJust (inDir cmd)) then do
 					let fp = evalFp (fromJust $ inDir cmd) sstate
-					tempArgs <- parseFromFile (sepBy readExpr (many $ char ' ' <|> char '\t')) fp
+					tempArgs <- parseExprFromFile fp
 					return $ case tempArgs of
 					    Left err -> []
 					    Right xs -> xs
 
 				     else return []
-    let retOut = case outDir cmd of
-		      Nothing -> []
-		      Just  a -> [evalFp a sstate, show (append cmd)]
-    let finalArgs = (map evalExpr $ args cmd) ++ (map (`evalExpr` vtable ) fargs) ++ retOut
-    maybeCommand finalArgs sstate
-    
+    let fargsEvaluated = map (`evalExpr` vtable ) fargs
+    let finalArgs = (map (`evalExpr` vtable ) $ args cmd) ++ fargsEvaluated
+    newsstate <- ourCommand finalArgs sstate
+    let retOut = outDir cmd
+    case retOut of
+	 Nothing -> putStr (output newsstate)
+	 Just fp -> writeFile (evalFp fp sstate) (output newsstate)
+    return newsstate
+
+evalCmd :: CommandTable -> ScriptState -> Cmd -> IO ScriptState
+evalCmd ctable sstate cmd =
+  case cmd of
+       Assign _ _ -> return $ evalCmdAssign cmd sstate
+       Cmd    _ _ _ _ _-> evalCmdCmd ctable sstate cmd
