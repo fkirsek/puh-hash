@@ -177,7 +177,6 @@ evalWhile :: CommandTable -> ScriptState -> While -> IO ScriptState
 evalWhile ctable sstate while = 
       case evalPred (cnd while) (vartable sstate) of
 	   True ->  do
-		    putStrLn "While is true"
 		    newsstate <- evalCmdList ctable sstate (comm while)
 		    evalWhile ctable newsstate while
 	   False -> return sstate
