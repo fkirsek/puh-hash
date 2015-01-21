@@ -6,7 +6,7 @@ module Hash.Parsing.HashParser where
 import Hash.Language.Expressions
 import Text.ParserCombinators.Parsec
 import Control.Monad
-import Control.Applicative ( (<$>), (<*>), (<*) )
+import Control.Applicative ( (<$>), (<*>), (<*), (*>) )
 import Data.List
 {-
 endOfCommand :: Parser Char
@@ -99,6 +99,7 @@ readCmdAssign = do
     char '='
     val1 <- readExpr
     skipwot
+    optional newline
     return $ Assign { var = var1, val = val1}
 
 {-
@@ -115,6 +116,8 @@ readCmdCmd = do
     args1 <- sepBy readExpr (many $ char ' ' <|> tab)
     skipwot
     let (args2, inDir1, outDir1, append1) = handleRedirects args1
+    skipwot
+    optional newline
     return $ Cmd {
        name = name1
      , args = args2
@@ -147,7 +150,7 @@ readCmd = try readCmdAssign <|> readCmdCmd
 			      
 -- parses out comments 
 readComment :: Parser ()
-readComment =  skipwot >> char '#' >> many (noneOf "\n") >> newline >> return ()
+readComment =  spaces >> char '#' >> many (noneOf "\n") >> optional newline >> return ()
    
 -- parsing a conditional
 readOnlyIfPart :: Parser (Pred, [Cmd])
@@ -156,10 +159,10 @@ readOnlyIfPart = do
     string ";if"
     skipwot
     pred <- readPred
-    readTLExpr
-    newline
-    string ";then" 
-    coms <- endBy (try readCmd) newline
+    spaces
+    string ";then"
+    optional newline
+    coms <- many (try readCmd)
     return (pred, coms)
     
 readIf :: Parser Conditional
@@ -175,7 +178,7 @@ readIfThen = do
     skipwot
     string ";else"
     skipwot
-    elseComs <- endBy (try readCmd) newline
+    elseComs <- many (try readCmd)
     skipwot
     string ";fi"
     return $ IfElse { cond = pred, cthen = coms, celse = elseComs}
@@ -189,7 +192,4 @@ readTLExpr = (TLCnd <$> try readConditional) <|> (TLCmd <$> try readCmd)
 
 parseExprFromFile fp = parseFromFile (sepBy readExpr (many $ char ' ' <|> char '\t')) fp
 
-readManyTLExpr :: Parser [TLExpr]
-readManyTLExpr = many readTLExpr
-
-parseTLExprsFromFile fp = parseFromFile readManyTLExpr fp
+parseTLExprsFromFile fp = parseFromFile (many $ skipMany readComment >> readTLExpr <* skipMany readComment) fp
