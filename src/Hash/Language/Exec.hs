@@ -77,7 +77,7 @@ evalComp comp vartable =
 	 CGT a b -> (val a >  val b)
 	 CLE a b -> (val a <= val b)
 	 CLT a b -> (val a <  val b)
-	 CLI a   -> (val a == "")
+	 CLI a   -> (null $ val a)
     where val a = evalExpr a vartable
 	  
 evalPred :: Pred -> VarTable -> Bool
@@ -115,28 +115,32 @@ evalFp expr sstate = if head path == '/' then path else (wd sstate) ++ path
 evalCmdCmd :: CommandTable -> ScriptState -> Cmd -> IO ScriptState
 evalCmdCmd ctable sstate cmd = do
     let vtable = vartable sstate
-    let maybeCommand = M.lookup (evalExpr (name cmd)  vtable) ctable
-    let ourCommand = case maybeCommand of
-			  Nothing -> error "Unrecognized command"
-			  Just a  -> a
-    fargs <- if (isJust (inDir cmd)) then do
-					let fp = evalFp (fromJust $ inDir cmd) sstate
-					tempArgs <- parseExprFromFile fp
-					return $ case tempArgs of
-					    Left err -> []
-					    Right xs -> xs
+    let cname = evalExpr (name cmd) vtable
+    if (cname == "") 
+    then return sstate 		
+    else do
+		let maybeCommand = M.lookup cname ctable
+		let ourCommand = case maybeCommand of
+				      Nothing -> error "Unrecognized command"
+				      Just a  -> a
+		fargs <- if (isJust (inDir cmd)) then do
+						    let fp = evalFp (fromJust $ inDir cmd) sstate
+						    tempArgs <- parseExprFromFile fp
+						    return $ case tempArgs of
+							Left err -> []
+							Right xs -> xs
 
-				     else return []
-    let fargsEvaluated = map (`evalExpr` vtable ) fargs
-    let finalArgs = (map (`evalExpr` vtable ) $ args cmd) ++ fargsEvaluated
-    newsstate <- ourCommand finalArgs sstate
-    let retOut = outDir cmd
-    case retOut of
-	 Nothing -> putStr (output newsstate)
-	 Just fp -> case append cmd of
-		  True -> appendFile (evalFp fp sstate) (output newsstate)
-		  _    -> writeFile  (evalFp fp sstate) (output newsstate)
-    return newsstate
+						else return []
+		let fargsEvaluated = map (`evalExpr` vtable ) fargs
+		let finalArgs = (map (`evalExpr` vtable ) $ args cmd) ++ fargsEvaluated
+		newsstate <- ourCommand finalArgs sstate
+		let retOut = outDir cmd
+		case retOut of
+		    Nothing -> putStr (output newsstate)
+		    Just fp -> case append cmd of
+			      True -> appendFile (evalFp fp sstate) (output newsstate)
+			      _    -> writeFile  (evalFp fp sstate) (output newsstate)
+		return newsstate
 
 -- here, ScriptState is the last argument to allow easier chaining
 evalCmd :: CommandTable -> Cmd -> ScriptState -> IO ScriptState

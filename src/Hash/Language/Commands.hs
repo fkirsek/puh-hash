@@ -177,13 +177,14 @@ readStrNotVar = do
     
 readStrAnything :: Parser Expr
 readStrAnything =  do
-    ch <- anyToken
+    ch <- noneOf "\n"
     return $  Str [ch]
 
 
 echo :: Command
 echo [] sstate = return $ sstate{output = "\n"}
-echo [target]  sstate = do
+echo targets  sstate = do
+    let target = concat targets
     let vals  = parse (many $ try readExprVar <|> readStrAnything ) "echo" target
     let vals2 = case vals of
 		Left err -> error "echo: somehow the parse failed"

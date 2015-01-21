@@ -13,8 +13,8 @@ endOfCommand :: Parser Char
 endOfCommand = newline <|> eof
 -}
 
-skipwot :: Parser ()
-skipwot = (skipMany $ char ' ' <|> char '\t')
+skipwot :: Parser String
+skipwot = (many $ char ' ' <|> char '\t')
 
 
 readExprVar :: Parser Expr
@@ -113,11 +113,8 @@ readCmdCmd = do
     skipwot
     name1 <-  readExpr
     skipwot
-    args1 <- sepBy readExpr (many $ char ' ' <|> tab)
-    skipwot
+    args1 <- endBy readExpr (many $ char ' ' <|> tab)
     let (args2, inDir1, outDir1, append1) = handleRedirects args1
-    skipwot
-    optional newline
     return $ Cmd {
        name = name1
      , args = args2
@@ -150,8 +147,14 @@ outRedir (inRedir, args) = case findIndices (== Str ">") args of
 readCmd = try readCmdAssign <|> readCmdCmd
 			      
 -- parses out comments 
-readComment :: Parser ()
-readComment =  spaces >> char '#' >> many (noneOf "\n") >> optional newline >> return ()
+readComment :: Parser Cmd
+readComment = do
+    spaces
+    char '#' 
+    many (noneOf "\n") 
+    optional newline 
+    return $ Cmd { name = Str "", args = [], inDir = Nothing, outDir = Nothing, append = False}
+  
    
 -- parsing a conditional
 readOnlyIfPart :: Parser (Pred, [Cmd])
@@ -162,26 +165,25 @@ readOnlyIfPart = do
     pred <- readPred
     spaces
     string ";then"
-    skipwot
-    optional newline
+    spaces
     coms <- many (try readCmd)
     return (pred, coms)
     
 readIf :: Parser Conditional
 readIf = do
     (pred, coms) <- readOnlyIfPart
-    skipwot
+    spaces
     string ";fi"
     return $ If{ cond = pred, cthen = coms }
 
 readIfThen :: Parser Conditional
 readIfThen = do
     (pred, coms) <- readOnlyIfPart	
-    skipwot
+    spaces
     string ";else"
-    skipwot
+    spaces
     elseComs <- many (try readCmd)
-    skipwot
+    spaces
     string ";fi"
     return $ IfElse { cond = pred, cthen = coms, celse = elseComs}
     
@@ -190,10 +192,9 @@ readConditional :: Parser Conditional
 readConditional = try readIfThen <|> readIf
 
 readTLExpr :: Parser TLExpr
-readTLExpr = (TLCnd <$> try readConditional) <|> (TLCmd <$> try readCmd)
+readTLExpr = ( TLCmd <$> try readComment) <|> (TLCnd <$> try readConditional) <|> (TLCmd <$> readCmd)
 
 parseExprFromFile fp = parseFromFile (sepBy readExpr (many $ char ' ' <|> char '\t')) fp
 
 parseTLExprsFromFile fp = parseFromFile readTLExprAndComments fp
-
-readTLExprAndComments = many $ try $ skipMany readComment >> readTLExpr
+readTLExprAndComments = many $ readTLExpr
