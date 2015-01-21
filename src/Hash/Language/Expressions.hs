@@ -50,13 +50,19 @@ data Conditional = If { cond :: Pred -- Predicate to satisfy
                  | IfElse { cond :: Pred -- Predicate to satisfy
                  , cthen :: [Cmd] -- Actions if satisfied
                  , celse :: [Cmd] -- Actions otherwise
-                 }
-                   deriving Show
-
+                 } deriving Show
+                 
+-- structure that represents while loops
+data While = While { cnd :: Pred
+		   , comm :: [Cmd]
+		    } deriving Show
+		    
+		    
 -- A top-level expression, wrapping either a conditional expression or a
 -- command
 data TLExpr = TLCmd Cmd
             | TLCnd Conditional
+	    | TLWh  While
               deriving Show
 
 

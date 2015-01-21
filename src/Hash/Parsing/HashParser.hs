@@ -169,6 +169,19 @@ readOnlyIfPart = do
     coms <- many (try readCmd)
     return (pred, coms)
     
+readWhile :: Parser While
+readWhile = do
+    skipwot
+    string ";while"
+    skipwot 
+    pred   <- readPred
+    skipwot 
+    string ";do"
+    spaces
+    coms <- many (try readCmd)
+    string ";hw"
+    return $ While {cnd = pred, comm = coms}
+    
 readIf :: Parser Conditional
 readIf = do
     (pred, coms) <- readOnlyIfPart
@@ -192,7 +205,7 @@ readConditional :: Parser Conditional
 readConditional = try readIfThen <|> readIf
 
 readTLExpr :: Parser TLExpr
-readTLExpr = ( TLCmd <$> try readComment) <|> (TLCnd <$> try readConditional) <|> (TLCmd <$> readCmd)
+readTLExpr = ( TLCmd <$> try readComment) <|> (TLCnd <$> try readConditional) <|> (TLWh <$> try readWhile) <|> (TLCmd <$> readCmd)
 
 parseExprFromFile fp = parseFromFile (sepBy readExpr (many $ char ' ' <|> char '\t')) fp
 

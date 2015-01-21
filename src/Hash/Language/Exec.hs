@@ -37,6 +37,7 @@ runTopLevel :: CommandTable -> TLExpr -> ScriptState -> IO ScriptState
 runTopLevel ctable tlexpr sstate  = case tlexpr of
 					TLCmd cmd  -> evalCmd   ctable cmd  sstate -- don't ask
 					TLCnd cond -> evalCond  ctable sstate cond
+					TLWh  wh   -> evalWhile ctable sstate wh
 					
 evalTLList :: CommandTable -> ScriptState -> [TLExpr] -> IO ScriptState
 evalTLList _	   sstate []   = return sstate
@@ -70,7 +71,9 @@ evalExpr expr vartable =
 		      Nothing -> ""
 		      Just val -> val 
 	 Str s -> s
+	 
 
+	 
 evalComp :: Comp -> VarTable -> Bool
 evalComp comp vartable = 
     case comp of
@@ -80,7 +83,7 @@ evalComp comp vartable =
 	 CGT a b -> (val a >  val b)
 	 CLE a b -> (val a <= val b)
 	 CLT a b -> (val a <  val b)
-	 CLI a   -> (null $ val a)
+	 CLI a   -> (not.null $ val a)
     where val a = evalExpr a vartable
 	  
 evalPred :: Pred -> VarTable -> Bool
@@ -156,9 +159,10 @@ evalCmd ctable cmd sstate  =
        
 evalCmdList :: CommandTable -> ScriptState -> [Cmd] -> IO ScriptState
 evalCmdList _	   sstate []   = return sstate
-evalCmdList ctable sstate lcmd = foldr (flip (>>=) ) (return sstate) cmdsWithCtable
-    where cmdsWithCtable = map (evalCmd ctable) lcmd
-	    
+evalCmdList ctable sstate (h:t) = do
+    newsstate <- evalCmd ctable h sstate
+    evalCmdList ctable newsstate t
+    
 evalCondIfThenElse :: CommandTable -> ScriptState -> Conditional -> IO ScriptState
 evalCondIfThenElse ctable sstate (IfElse cond1 cthen1 celse1) = if evalPred cond1 (vartable sstate) 
 								   then evalCmdList ctable sstate cthen1
@@ -169,4 +173,11 @@ evalCond ctable sstate conditional = case conditional of
 					  If cond1 cthen1 -> evalCondIfThenElse ctable sstate (IfElse {cond = cond1, cthen=cthen1, celse = []} )
 					  IfElse cond1 cthen1 celse1 -> evalCondIfThenElse ctable sstate conditional
 					  
-
+evalWhile :: CommandTable -> ScriptState -> While -> IO ScriptState
+evalWhile ctable sstate while = 
+      case evalPred (cnd while) (vartable sstate) of
+	   True ->  do
+		    putStrLn "While is true"
+		    newsstate <- evalCmdList ctable sstate (comm while)
+		    evalWhile ctable newsstate while
+	   False -> return sstate
